@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signed() { return request.auth != null && request.auth.token.email_verified == true; }
+    function allowed() {
+      return signed() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'trainer'];
+    }
+    function admin() { return allowed() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'; }
+    function text(v, max) { return v is string && v.size() > 0 && v.size() <= max; }
+    function date(v) { return v is string && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'); }
+    function time(v) { return v is string && v.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'); }
+    function version() {
+      return request.resource.data.revision is int && (resource == null
+        ? request.resource.data.revision == 1
+        : request.resource.data.revision == resource.data.revision + 1);
+    }
+    function base(id, keys) { return request.resource.data.keys().hasOnly(keys) && request.resource.data.id == id && version(); }
+    function uniqueList(v, max) { return v is list && v.size() <= max && v.toSet().size() == v.size(); }
+    match /users/{uid} {
+      // A signed in user can inspect only their own grant before authorization.
+      allow get: if signed() && (request.auth.uid == uid || admin());
+      allow list: if admin();
+      allow create, update: if admin() && uid != request.auth.uid
+        && request.resource.data.keys().hasOnly(['role','active','trainerId'])
+        && request.resource.data.role in ['admin','trainer'] && request.resource.data.active is bool
+        && text(request.resource.data.trainerId,100)
+        && getAfter(/databases/$(database)/documents/trainers/$(request.resource.data.trainerId)).data.uid == uid
+        && getAfter(/databases/$(database)/documents/trainers/$(request.resource.data.trainerId)).data.role == request.resource.data.role
+        && getAfter(/databases/$(database)/documents/trainers/$(request.resource.data.trainerId)).data.active == request.resource.data.active;
+      allow delete: if admin() && uid != request.auth.uid
+        && getAfter(/databases/$(database)/documents/trainers/$(resource.data.trainerId)).data.uid != uid;
+    }
+    match /members/{id} {
+      allow read: if allowed();
+      allow create, update: if allowed() && base(id,['id','name','email','joined','revision'])
+        && text(request.resource.data.name,100) && request.resource.data.email is string
+        && request.resource.data.email.size() <= 200 && date(request.resource.data.joined);
+    }
+    match /trainers/{id} {
+      allow read: if allowed();
+      allow create, update: if admin() && base(id,['id','name','email','active','role','uid','revision'])
+        && text(request.resource.data.name,100) && text(request.resource.data.email,200)
+        && request.resource.data.active is bool && request.resource.data.role in ['admin','trainer']
+        && request.resource.data.uid is string && request.resource.data.uid.size() <= 128
+        && (request.resource.data.uid == '' || (
+          getAfter(/databases/$(database)/documents/users/$(request.resource.data.uid)).data.trainerId == id
+          && getAfter(/databases/$(database)/documents/users/$(request.resource.data.uid)).data.active == request.resource.data.active
+          && getAfter(/databases/$(database)/documents/users/$(request.resource.data.uid)).data.role == request.resource.data.role))
+        && (resource == null || resource.data.uid == '' || resource.data.uid == request.resource.data.uid
+          || !existsAfter(/databases/$(database)/documents/users/$(resource.data.uid)));
+    }
+    match /trainings/{id} {
+      allow read: if allowed();
+      allow create, update: if admin() && base(id,['id','name','day','start','end','active','trainerIds','revision'])
+        && text(request.resource.data.name,100) && request.resource.data.day is int
+        && request.resource.data.day >= 0 && request.resource.data.day < 7
+        && time(request.resource.data.start) && time(request.resource.data.end)
+        && request.resource.data.start < request.resource.data.end && request.resource.data.active is bool
+        && uniqueList(request.resource.data.trainerIds,30);
+      allow delete: if admin();
+    }
+    match /attendance/{id} {
+      allow read: if allowed();
+      function valid() {
+        return base(id,['id','trainingId','date','memberIds','trainingName','start','end','revision'])
+          && text(request.resource.data.trainingId,100) && date(request.resource.data.date)
+          && id == request.resource.data.trainingId + '_' + request.resource.data.date
+          && uniqueList(request.resource.data.memberIds,1000) && text(request.resource.data.trainingName,100)
+          && time(request.resource.data.start) && time(request.resource.data.end)
+          && request.resource.data.start < request.resource.data.end;
+      }
+      allow create: if allowed() && valid()
+        && get(/databases/$(database)/documents/trainings/$(request.resource.data.trainingId)).data.active == true
+        && request.resource.data.trainingName == get(/databases/$(database)/documents/trainings/$(request.resource.data.trainingId)).data.name
+        && request.resource.data.start == get(/databases/$(database)/documents/trainings/$(request.resource.data.trainingId)).data.start
+        && request.resource.data.end == get(/databases/$(database)/documents/trainings/$(request.resource.data.trainingId)).data.end;
+      // Historical identity and title/time snapshot are immutable, even after deletion of a training.
+      allow update: if allowed() && valid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds','revision']);
+    }
+    match /incidents/{id} {
+      allow read: if allowed();
+      allow create, update: if allowed() && base(id,['id','member','date','category','detail','resolved','revision'])
+        && text(request.resource.data.member,100) && date(request.resource.data.date)
+        && text(request.resource.data.category,100) && text(request.resource.data.detail,3000)
+        && request.resource.data.resolved is bool;
+    }
+    match /settings/schedule-v1 {
+      allow read: if allowed();
+      allow create: if admin() && request.resource.data.keys().hasOnly(['initialized']) && request.resource.data.initialized == true;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
