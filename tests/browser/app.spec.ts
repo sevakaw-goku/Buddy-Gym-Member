@@ -28,11 +28,9 @@ test('clean start, exact schedule and responsive navigation', async ({
   await expect(page.locator('.stat-number')).toHaveText(['0', '0', '17', '0']);
   await nav(page, 'Trainingsplan');
   await expect(page.locator('.training-card')).toHaveCount(17);
-  const tue = page
-    .locator('.day-panel')
-    .filter({
-      has: page.getByRole('heading', { name: 'Dienstag', exact: true }),
-    });
+  const tue = page.locator('.day-panel').filter({
+    has: page.getByRole('heading', { name: 'Dienstag', exact: true }),
+  });
   await expect(tue.locator('.training-card')).toHaveCount(3);
   await expect(tue.getByText('18:15–19:30', { exact: true })).toHaveCount(2);
   expect(

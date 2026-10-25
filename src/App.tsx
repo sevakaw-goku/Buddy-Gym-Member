@@ -248,9 +248,11 @@ export default function App() {
     let stopAccess = () => {},
       stopData = () => {},
       alive = true,
-      generation = 0;
+      generation = 0,
+      currentGrant = '';
     const stopAuth = onAuthStateChanged(auth!, (user) => {
       generation++;
+      currentGrant = '';
       stopAccess();
       stopData();
       setData(null);
@@ -271,6 +273,10 @@ export default function App() {
       stopAccess = watchAccess(
         user.uid,
         (profile) => {
+          // Reconnect metadata for an unchanged grant must not discard an open draft.
+          const signature = JSON.stringify(profile);
+          if (signature === currentGrant) return;
+          currentGrant = signature;
           const version = ++generation;
           stopData();
           setData(null);
