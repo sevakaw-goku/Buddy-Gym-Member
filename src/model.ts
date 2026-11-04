@@ -12,6 +12,8 @@ export type Trainer = {
   active: boolean;
   role: 'admin' | 'trainer';
   uid: string;
+  invitationId?: string;
+  invitationState?: 'invited' | 'accepted' | 'revoked';
   revision: number;
 };
 export type Training = {

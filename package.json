@@ -5,15 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --experimental-strip-types tests/model.test.ts",
     "test:ui": "playwright test",
     "test:rules": "firebase emulators:exec --only firestore --project demo-buddy-gym \"node --experimental-strip-types tests/rules.test.ts\"",
-    "format:check": "prettier --check src/*.ts src/*.tsx tests/**/*.ts tests/*.ts playwright.config.ts vite.config.ts"
+    "format:check": "prettier --check src/**/*.ts src/**/*.tsx src/*.ts src/*.tsx server/*.ts api/*.ts tests/**/*.ts tests/*.ts *config*.ts",
+    "test:server": "firebase emulators:exec --only auth,firestore --project demo-buddy-gym \"node --experimental-strip-types tests/server.test.ts\"",
+    "test:integration": "firebase emulators:exec --only auth,firestore --project demo-buddy-gym \"playwright test -c playwright.integration.config.ts\""
   },
   "dependencies": {
     "firebase": "^12.4.0",
+    "firebase-admin": "^13.6.0",
     "lucide-react": "^0.468.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
