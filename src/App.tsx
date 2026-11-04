@@ -1728,6 +1728,7 @@ function Editor({
                 Rolle
                 <select
                   name="role"
+                  aria-label="Rolle"
                   defaultValue={trainer?.role ?? 'trainer'}
                   disabled={self}
                 >

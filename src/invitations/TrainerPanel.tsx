@@ -77,7 +77,11 @@ export function InviteForm({
         </label>
         <label>
           Rolle
-          <select name="role" defaultValue={trainer?.role ?? 'trainer'}>
+          <select
+            aria-label="Rolle"
+            name="role"
+            defaultValue={trainer?.role ?? 'trainer'}
+          >
             <option value="trainer">Trainer</option>
             <option value="admin">Administrator</option>
           </select>

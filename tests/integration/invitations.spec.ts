@@ -50,6 +50,9 @@ test('admin invitation, new password, actual verification action, acceptance and
   await expect(
     coach.getByRole('button', { name: 'Bestätigung prüfen', exact: true }),
   ).toBeVisible();
+  await expect(coach.getByRole('status')).toContainText(
+    'Bestätigungs-E-Mail gesendet',
+  );
   const codes = await (
     await request.get(
       'http://127.0.0.1:9099/emulator/v1/projects/demo-buddy-gym/oobCodes',
@@ -123,6 +126,8 @@ test('admin invitation, new password, actual verification action, acceptance and
     .getByRole('dialog')
     .getByRole('button', { name: 'Speichern', exact: true })
     .click();
+  await expect(admin.getByRole('dialog')).toHaveCount(0);
+  await expect(coach.locator('.profile strong')).toHaveText('Administrator');
   await coach.getByRole('button', { name: 'Menü öffnen' }).click();
   await coach
     .getByRole('navigation')
