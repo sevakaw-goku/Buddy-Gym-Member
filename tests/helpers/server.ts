@@ -22,17 +22,15 @@ await auth.createUser({
 await db
   .doc('users/browser-admin')
   .set({ trainerId: 'browser-admin', active: true, role: 'admin' });
-await db
-  .doc('trainers/browser-admin')
-  .set({
-    id: 'browser-admin',
-    name: 'Browser Test Admin',
-    email: 'browser-admin@example.com',
-    uid: 'browser-admin',
-    active: true,
-    role: 'admin',
-    revision: 1,
-  });
+await db.doc('trainers/browser-admin').set({
+  id: 'browser-admin',
+  name: 'Browser Test Admin',
+  email: 'browser-admin@example.com',
+  uid: 'browser-admin',
+  active: true,
+  role: 'admin',
+  revision: 1,
+});
 const mail: Mailer = {
   ready() {},
   async send(to, _name, link) {

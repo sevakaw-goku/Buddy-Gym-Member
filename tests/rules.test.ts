@@ -145,8 +145,14 @@ test('attendance identity, immutable history and optimistic concurrency are enfo
     }),
   );
   await assertSucceeds(deleteDoc(doc(db('admin'), 'trainings', 'session')));
-  await assertSucceeds(
+  await assertFails(
     updateDoc(doc(client, 'attendance', attendance.id), {
+      memberIds: [],
+      revision: 3,
+    }),
+  );
+  await assertSucceeds(
+    updateDoc(doc(db('admin'), 'attendance', attendance.id), {
       memberIds: [],
       revision: 3,
     }),

@@ -70,17 +70,15 @@ before(async () => {
   await db
     .doc(`users/${admin.uid}`)
     .set({ active: true, role: 'admin', trainerId: 'bootstrap-admin' });
-  await db
-    .doc('trainers/bootstrap-admin')
-    .set({
-      id: 'bootstrap-admin',
-      uid: admin.uid,
-      name: 'Existing Admin',
-      email: admin.email,
-      role: 'admin',
-      active: true,
-      revision: 7,
-    });
+  await db.doc('trainers/bootstrap-admin').set({
+    id: 'bootstrap-admin',
+    uid: admin.uid,
+    name: 'Existing Admin',
+    email: admin.email,
+    role: 'admin',
+    active: true,
+    revision: 7,
+  });
 });
 beforeEach(async () => {
   clock = Date.now();

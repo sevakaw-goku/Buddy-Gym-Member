@@ -70,13 +70,11 @@ export function invitationHandler(
           .status(error.status)
           .json({ code: error.code, error: error.message });
       else
-        res
-          .status(500)
-          .json({
-            code: 'server-error',
-            error:
-              'Die Aktion konnte nicht abgeschlossen werden. Bitte erneut versuchen.',
-          });
+        res.status(500).json({
+          code: 'server-error',
+          error:
+            'Die Aktion konnte nicht abgeschlossen werden. Bitte erneut versuchen.',
+        });
     }
   };
 }
