@@ -27,6 +27,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:ui
       - run: npm run test:rules
+      - run: npm run test:server
+      - run: npm run test:integration
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

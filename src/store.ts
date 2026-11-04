@@ -6,6 +6,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { invitationRequest } from './invitations/client';
 import {
   type Access,
   type Collection,
@@ -90,36 +91,15 @@ export function watchAccess(
 }
 export async function saveRemote(key: Collection, entity: Entity) {
   validate(key, entity);
+  if (key === 'trainers') {
+    await invitationRequest('updateTrainer', entity);
+    return;
+  }
   await runTransaction(db!, async (tx) => {
     const ref = doc(db!, key, entity.id);
     const old = await tx.get(ref);
     if ((old.exists() ? old.data().revision : 0) !== entity.revision)
       throw new Error(conflictMessage);
-    if (key === 'trainers') {
-      const trainer = entity as Trainer;
-      const oldUid = old.exists() ? (old.data().uid as string) : '';
-      if (trainer.uid) {
-        const account = await tx.get(doc(db!, 'users', trainer.uid));
-        if (account.exists() && account.data().trainerId !== trainer.id)
-          throw new Error(
-            'Diese Firebase-UID ist bereits einem anderen Trainer zugeordnet.',
-          );
-      }
-      if (oldUid && oldUid !== trainer.uid)
-        tx.delete(doc(db!, 'users', oldUid));
-      if (
-        trainer.uid &&
-        (!old.exists() ||
-          oldUid !== trainer.uid ||
-          old.data().role !== trainer.role ||
-          old.data().active !== trainer.active)
-      )
-        tx.set(doc(db!, 'users', trainer.uid), {
-          role: trainer.role,
-          active: trainer.active,
-          trainerId: trainer.id,
-        });
-    }
     tx.set(ref, { ...entity, revision: entity.revision + 1 });
   });
 }

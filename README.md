@@ -1,5 +1,7 @@
 # BUDDY GYM Trainer-App
 
+Trainer per E-Mail einladen: [Einrichtung, Kosten und Testablauf](docs/TRAINER_INVITATIONS.md). Privilegierte Trainer-/Rollenänderungen laufen in dieser Version über die Vercel-Serverfunktion; eine manuelle UID-Eingabe in der Web-App ist für Firebase-Konten nicht mehr vorgesehen.
+
 React 19, TypeScript und Vite. Trainingsplan, zentrale Teilnehmer, einheitenspezifische Anwesenheit, Trainer, Vorfälle und Statistiken im bestehenden grünen Design.
 
 ## Start und Prüfungen
@@ -60,11 +62,11 @@ Es wurden durch diese Änderung **keine Firebase-Ressourcen und kein kostenpflic
    ```
 
 9. Mit dem Test-Admin anmelden. Die 17 Einheiten werden einmalig per Transaktion angelegt. Teilnehmer, Anwesenheiten und Vorfälle bleiben leer.
-10. Weitere Testkonten unter Authentication anlegen, deren E-Mail bestätigen und unter «Trainer» die genaue UID verknüpfen. Mehrere Trainer können derselben Einheit zugeordnet werden. Ein Administrator kann andere Trainer deaktivieren; das dazugehörige Kontorecht wird atomar entzogen. Eigene Rechte lassen sich in der App nicht ändern. Für die Deaktivierung eines Administrators einen zweiten aktiven Administrator verwenden. Umverknüpfungen von UIDs entziehen dem alten Konto das Recht.
+10. Weitere Testkonten über «Trainer → Trainer einladen» einladen; zuerst die Server-/E-Mail-Einrichtung gemäss der verlinkten Anleitung abschliessen. Mehrere Trainer können derselben Einheit zugeordnet werden. Ein Administrator kann andere Trainer deaktivieren; das dazugehörige Kontorecht wird atomar entzogen. Eigene Rechte lassen sich in der App nicht ändern. Für die Deaktivierung eines Administrators einen zweiten aktiven Administrator verwenden. Umverknüpfungen von UIDs entziehen dem alten Konto das Recht.
 
 ### Zugriffsregeln und Speicherung
 
-Alle Datenkollektionen sind für anonyme, unbestätigte, nicht freigegebene und deaktivierte Konten gesperrt. Freigaben stehen unter `users/<auth.uid>`, Trainerprofile unter `trainers/<id>`. UID-Freigabe und Trainerprofil müssen im selben atomaren Schreibvorgang zusammenpassen. Nur Administratoren dürfen Rechte anderer Konten ändern. Nicht aufgeführte Pfade sind gesperrt. Die Regeln validieren erlaubte Felder, Revisionsnummern und die Identität von Anwesenheiten.
+Alle Datenkollektionen sind für anonyme, unbestätigte, nicht freigegebene und deaktivierte Konten gesperrt. Freigaben stehen unter `users/<auth.uid>`, Trainerprofile unter `trainers/<id>`. UID-Freigabe und Trainerprofil müssen im selben atomaren Schreibvorgang zusammenpassen. Nur die Serverfunktion darf nach Prüfung eines bestätigten aktiven Administrators Rechte anderer Konten ändern. Browserzugriffe auf Kontofreigaben und Trainerprofile sind für Schreibvorgänge gesperrt. Nicht aufgeführte Pfade sind gesperrt. Die Regeln validieren erlaubte Felder, Revisionsnummern und die Identität von Anwesenheiten.
 
 Cloud-Daten werden über dokumentweise Echtzeit-Abonnements synchronisiert. Es gibt keinen automatischen Upload lokaler Browserdaten. Firebase-Sitzungen und Firestore-Caches bleiben im Arbeitsspeicher; es wird keine persistente Offline-Kopie der gemeinsamen Personendaten eingerichtet. Nach Neuladen ist eine erneute Anmeldung erforderlich. Speichern braucht eine funktionierende Verbindung; Fehler und Konflikte werden angezeigt. Eine Deaktivierung beendet den Datenzugriff und leert den angezeigten Datenbestand. Bereits vor Entzug gelesene oder bewusst exportierte Daten können technisch nicht zurückgerufen werden.
 

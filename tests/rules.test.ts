@@ -24,7 +24,7 @@ const training = {
   start: '18:30',
   end: '19:30',
   active: true,
-  trainerIds: [],
+  trainerIds: ['trainer'],
   revision: 1,
 };
 const attendance = {
@@ -152,43 +152,78 @@ test('attendance identity, immutable history and optimistic concurrency are enfo
     }),
   );
 });
-test('admin grants are atomic, cannot self-demote and inactive revocation blocks access immediately', async () => {
+test('browser clients including administrators cannot write grants, trainer identities or invitations', async () => {
   const admin = db('admin');
-  const batch = writeBatch(admin);
-  batch.set(doc(admin, 'trainers', 'coach'), {
-    id: 'coach',
-    name: 'Test Coach',
-    email: 'test@example.com',
-    role: 'trainer',
-    uid: 'coach-login',
-    active: true,
-    revision: 1,
+  for (const [path, data] of [
+    ['users/forged', { trainerId: 'trainer', role: 'admin', active: true }],
+    [
+      'trainers/forged',
+      {
+        id: 'forged',
+        name: 'Forged',
+        email: 'x@example.com',
+        uid: 'trainer',
+        active: true,
+        role: 'admin',
+        revision: 1,
+      },
+    ],
+    ['invitations/forged', { status: 'pending', role: 'admin' }],
+    ['invitationTokens/forged', { hash: 'secret' }],
+  ] as const)
+    await assertFails(setDoc(doc(admin, path), data));
+  await assertFails(getDocs(collection(db('trainer'), 'invitations')));
+  await assertFails(getDocs(collection(admin, 'invitationTokens')));
+});
+test('trainer can edit only assigned sessions, cannot reassign or create administrator rights', async () => {
+  await env.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'trainings', 'assigned'), {
+      ...training,
+      id: 'assigned',
+    });
+    await setDoc(doc(context.firestore(), 'trainings', 'unassigned'), {
+      ...training,
+      id: 'unassigned',
+      trainerIds: [],
+    });
   });
-  batch.set(doc(admin, 'users', 'coach-login'), {
-    trainerId: 'coach',
-    role: 'trainer',
-    active: true,
-  });
-  await assertSucceeds(batch.commit());
-  await assertSucceeds(getDoc(doc(db('coach-login'), 'members', member.id)));
-  await assertFails(
-    updateDoc(doc(admin, 'users', 'admin'), { role: 'trainer' }),
-  );
-  await assertFails(
-    setDoc(doc(admin, 'users', 'unlinked'), {
-      trainerId: 'missing',
-      role: 'admin',
-      active: true,
+  const trainer = db('trainer');
+  await assertSucceeds(
+    updateDoc(doc(trainer, 'trainings', 'assigned'), {
+      name: 'Updated assigned',
+      revision: 2,
     }),
   );
-  const revoke = writeBatch(admin);
-  revoke.update(doc(admin, 'trainers', 'coach'), {
-    active: false,
-    revision: 2,
+  await assertFails(
+    updateDoc(doc(trainer, 'trainings', 'unassigned'), {
+      name: 'Stolen',
+      revision: 2,
+    }),
+  );
+  await assertFails(
+    updateDoc(doc(trainer, 'trainings', 'assigned'), {
+      trainerIds: ['someone-else'],
+      revision: 3,
+    }),
+  );
+  await assertFails(
+    setDoc(doc(trainer, 'attendance', 'unassigned_2026-10-26'), {
+      ...attendance,
+      id: 'unassigned_2026-10-26',
+      trainingId: 'unassigned',
+    }),
+  );
+  await env.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'users', 'trainer'), {
+      active: false,
+    });
   });
-  revoke.update(doc(admin, 'users', 'coach-login'), { active: false });
-  await assertSucceeds(revoke.commit());
-  await assertFails(getDoc(doc(db('coach-login'), 'members', member.id)));
+  await assertFails(getDocs(collection(trainer, 'members')));
+  await env.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'users', 'trainer'), {
+      active: true,
+    });
+  });
 });
 test('schema rejects malformed writes and unknown collections', async () => {
   await assertFails(

@@ -1,6 +1,15 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, inMemoryPersistence, setPersistence } from 'firebase/auth';
-import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
+import {
+  connectAuthEmulator,
+  getAuth,
+  inMemoryPersistence,
+  setPersistence,
+} from 'firebase/auth';
+import {
+  connectFirestoreEmulator,
+  initializeFirestore,
+  memoryLocalCache,
+} from 'firebase/firestore';
 const env = import.meta.env;
 const config = {
   apiKey: env.VITE_FIREBASE_API_KEY,
@@ -16,6 +25,13 @@ export const configurationError =
     : '';
 const app = configured ? initializeApp(config) : null;
 export const auth = app ? getAuth(app) : null;
+if (
+  import.meta.env.DEV &&
+  env.VITE_USE_FIREBASE_EMULATORS === 'true' &&
+  config.projectId === 'demo-buddy-gym' &&
+  auth
+)
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
 // No persistent personal data or credentials on shared trainer devices.
 export const authReady = auth
   ? setPersistence(auth, inMemoryPersistence)
@@ -23,3 +39,12 @@ export const authReady = auth
 export const db = app
   ? initializeFirestore(app, { localCache: memoryLocalCache() })
   : null;
+
+// Only the local Vite development server can connect to test emulators.
+if (
+  import.meta.env.DEV &&
+  env.VITE_USE_FIREBASE_EMULATORS === 'true' &&
+  config.projectId === 'demo-buddy-gym'
+) {
+  if (db) connectFirestoreEmulator(db, '127.0.0.1', 8085);
+}

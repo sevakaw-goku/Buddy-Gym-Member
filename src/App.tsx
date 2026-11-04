@@ -30,6 +30,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { TrainerPanel, InviteForm } from './invitations/TrainerPanel';
 import { auth, authReady, configured, configurationError } from './firebase';
 import {
   attendanceDraft,
@@ -446,6 +447,10 @@ function Workspace({
     [error, setError] = useState(''),
     [edit, setEdit] = useState<Edit | null>(null),
     [busy, setBusy] = useState(false);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [invite, setInvite] = useState<{ trainer?: Trainer } | null>(null);
+  const canManageTraining = (t: Training) =>
+    admin || t.trainerIds.includes(access.trainerId);
   const [date, setDate] = useState(localDate()),
     [trainingId, setTrainingId] = useState(''),
     [selection, setSelection] = useState<string[]>([]),
@@ -531,6 +536,10 @@ function Workspace({
   }
   async function saveAttendance() {
     if (!training && !saved) return;
+    if (!admin && (!training || !canManageTraining(training))) {
+      setError('Nur zugewiesene Trainer dürfen diese Anwesenheit bearbeiten.');
+      return;
+    }
     await action(async () => {
       const source = training ?? {
         id: saved!.trainingId,
@@ -573,7 +582,9 @@ function Workspace({
             <input
               type="checkbox"
               checked={selection.includes(m.id)}
-              disabled={busy}
+              disabled={
+                busy || (!admin && (!training || !canManageTraining(training)))
+              }
               onChange={() => {
                 setSelection((ids) =>
                   ids.includes(m.id)
@@ -725,13 +736,19 @@ function Workspace({
               (!['Trainingsplan', 'Trainer'].includes(page) || admin) && (
                 <button
                   className="primary"
-                  onClick={() => setEdit({ kind: createKind })}
+                  onClick={() =>
+                    page === 'Trainer' && configured
+                      ? setInvite({})
+                      : setEdit({ kind: createKind })
+                  }
                 >
                   <Plus size={18} />
                   {createKind === 'trainings'
                     ? 'Training hinzufügen'
                     : createKind === 'trainers'
-                      ? 'Trainer hinzufügen'
+                      ? configured
+                        ? 'Trainer einladen'
+                        : 'Trainer hinzufügen'
                       : createKind === 'incidents'
                         ? 'Vorfall melden'
                         : 'Teilnehmer hinzufügen'}
@@ -946,7 +963,7 @@ function Workspace({
                             <ChevronRight size={14} />
                           </span>
                         </button>
-                        {admin && (
+                        {canManageTraining(t) && (
                           <div className="row-actions">
                             <button
                               className="text-button"
@@ -970,44 +987,46 @@ function Workspace({
                             >
                               {t.active ? 'Deaktivieren' : 'Aktivieren'}
                             </button>
-                            <button
-                              className="text-button danger"
-                              disabled={busy}
-                              onClick={() => {
-                                if (
-                                  window.confirm(
-                                    `«${t.name}» löschen? Erfasste Anwesenheiten bleiben im Verlauf erhalten.`,
+                            {admin && (
+                              <button
+                                className="text-button danger"
+                                disabled={busy}
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      `«${t.name}» löschen? Erfasste Anwesenheiten bleiben im Verlauf erhalten.`,
+                                    )
                                   )
-                                )
-                                  void action(async () => {
-                                    if (configured) await deleteTraining(t);
-                                    else {
-                                      const current = readLocal();
-                                      if (
-                                        current.trainings.find(
-                                          (v) => v.id === t.id,
-                                        )?.revision !== t.revision
-                                      )
-                                        throw new Error(
-                                          'Eintrag wurde geändert. Bitte erneut öffnen.',
+                                    void action(async () => {
+                                      if (configured) await deleteTraining(t);
+                                      else {
+                                        const current = readLocal();
+                                        if (
+                                          current.trainings.find(
+                                            (v) => v.id === t.id,
+                                          )?.revision !== t.revision
+                                        )
+                                          throw new Error(
+                                            'Eintrag wurde geändert. Bitte erneut öffnen.',
+                                          );
+                                        const next = {
+                                          ...current,
+                                          trainings: current.trainings.filter(
+                                            (v) => v.id !== t.id,
+                                          ),
+                                        };
+                                        localStorage.setItem(
+                                          localKey,
+                                          JSON.stringify(next),
                                         );
-                                      const next = {
-                                        ...current,
-                                        trainings: current.trainings.filter(
-                                          (v) => v.id !== t.id,
-                                        ),
-                                      };
-                                      localStorage.setItem(
-                                        localKey,
-                                        JSON.stringify(next),
-                                      );
-                                      setData(next);
-                                    }
-                                  });
-                              }}
-                            >
-                              Löschen
-                            </button>
+                                        setData(next);
+                                      }
+                                    });
+                                }}
+                              >
+                                Löschen
+                              </button>
+                            )}
                           </div>
                         )}
                       </article>
@@ -1129,7 +1148,12 @@ function Workspace({
                       <div className="bulk-actions">
                         <button
                           className="secondary"
-                          disabled={busy || !filtered.length}
+                          disabled={
+                            busy ||
+                            !filtered.length ||
+                            (!admin &&
+                              (!training || !canManageTraining(training)))
+                          }
                           onClick={() => {
                             setSelection((ids) => [
                               ...new Set([
@@ -1144,7 +1168,12 @@ function Workspace({
                         </button>
                         <button
                           className="text-button"
-                          disabled={busy || !filtered.length}
+                          disabled={
+                            busy ||
+                            !filtered.length ||
+                            (!admin &&
+                              (!training || !canManageTraining(training)))
+                          }
                           onClick={() => {
                             setSelection((ids) =>
                               ids.filter(
@@ -1198,7 +1227,11 @@ function Workspace({
                           </button>
                         )}
                         <button
-                          disabled={busy}
+                          disabled={
+                            busy ||
+                            (!admin &&
+                              (!training || !canManageTraining(training)))
+                          }
                           className="primary"
                           onClick={() => void saveAttendance()}
                         >
@@ -1251,69 +1284,18 @@ function Workspace({
             </>
           )}
           {page === 'Trainer' && (
-            <section className="panel">
-              <div className="panel-heading">
-                <div>
-                  <h2>Dein Trainerteam</h2>
-                  <p>
-                    {admin
-                      ? 'Konten in Firebase Authentication anlegen und hier über die UID freigeben.'
-                      : 'Trainerzuordnungen und Rollen sind durch Administratoren verwaltet.'}
-                  </p>
-                </div>
-              </div>
-              {data.trainers.length ? (
-                data.trainers.map((t) => (
-                  <div
-                    className={`member-row trainer-row ${t.active ? '' : 'inactive'}`}
-                    key={t.id}
-                  >
-                    <span className="avatar">{initials(t.name)}</span>
-                    <div className="member-name">
-                      <strong>
-                        {t.name} ·{' '}
-                        {t.role === 'admin' ? 'Administrator' : 'Trainer'}
-                        {t.active ? '' : ' · Inaktiv'}
-                      </strong>
-                      <span>
-                        {t.email} · {t.uid ? 'Login verknüpft' : 'Ohne Login'}
-                      </span>
-                      <span>
-                        {data.trainings
-                          .filter((p) => p.trainerIds.includes(t.id))
-                          .map((p) => `${days[p.day]} ${p.start} ${p.name}`)
-                          .join(' · ') || 'Noch keinem Training zugeordnet'}
-                      </span>
-                    </div>
-                    {admin && (
-                      <div className="row-actions">
-                        <button
-                          className="text-button"
-                          onClick={() =>
-                            setEdit({ kind: 'trainers', entity: t })
-                          }
-                        >
-                          Bearbeiten
-                        </button>
-                        <button
-                          className="text-button"
-                          disabled={busy || Boolean(uid && uid === t.uid)}
-                          onClick={() =>
-                            void action(() =>
-                              save('trainers', { ...t, active: !t.active }),
-                            )
-                          }
-                        >
-                          {t.active ? 'Deaktivieren' : 'Aktivieren'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="empty">Noch keine Trainer erfasst.</div>
-              )}
-            </section>
+            <TrainerPanel
+              data={data}
+              admin={admin}
+              uid={uid}
+              busy={busy}
+              onEdit={(t) => setEdit({ kind: 'trainers', entity: t })}
+              onToggle={(t) =>
+                void action(() => save('trainers', { ...t, active: !t.active }))
+              }
+              onInvite={(trainer) => setInvite({ trainer })}
+              onAction={action}
+            />
           )}
           {page === 'Statistiken' && (
             <section className="panel">
@@ -1432,9 +1414,26 @@ function Workspace({
           </footer>
         </main>
       </div>
+      {invite && (
+        <Modal
+          title="Trainer einladen"
+          onClose={() => setInvite(null)}
+          busy={inviteBusy}
+        >
+          <InviteForm
+            trainer={invite.trainer}
+            onBusyChange={setInviteBusy}
+            onDone={() => {
+              setInvite(null);
+              setNotice('Einladung versendet.');
+            }}
+          />
+        </Modal>
+      )}
       {edit && (
         <Editor
           edit={edit}
+          admin={admin}
           data={data}
           uid={uid}
           onClose={() => setEdit(null)}
@@ -1540,12 +1539,14 @@ function Modal({
   );
 }
 function Editor({
+  admin,
   edit,
   data,
   uid,
   onClose,
   onSave,
 }: {
+  admin: boolean;
   edit: Edit;
   data: Data;
   uid: string;
@@ -1593,16 +1594,19 @@ function Editor({
         start: s('start'),
         end: s('end'),
         active: t?.active ?? true,
-        trainerIds: f.getAll('trainerIds').map(String),
+        trainerIds: admin
+          ? f.getAll('trainerIds').map(String)
+          : (t?.trainerIds ?? []),
       };
     else if (edit.kind === 'trainers')
       value = {
+        ...trainer,
         ...base,
         name: s('name'),
-        email: s('email'),
+        email: configured ? trainer!.email : s('email'),
         active: trainer?.active ?? true,
         role: self ? trainer!.role : (s('role') as Trainer['role']),
-        uid: self ? uid : s('uid'),
+        uid: configured ? trainer!.uid : self ? uid : s('uid'),
       };
     else
       value = {
@@ -1655,6 +1659,7 @@ function Editor({
                 required={edit.kind === 'trainers'}
                 maxLength={200}
                 defaultValue={m?.email}
+                readOnly={configured && edit.kind === 'trainers'}
               />
             </label>
           )}
@@ -1690,7 +1695,7 @@ function Editor({
                   />
                 </label>
               </div>
-              <fieldset className="trainer-options">
+              <fieldset className="trainer-options" disabled={!admin}>
                 <legend>Trainer zuweisen</legend>
                 {data.trainers
                   .filter((tr) => tr.active || t?.trainerIds.includes(tr.id))
@@ -1727,21 +1732,22 @@ function Editor({
                   <option value="admin">Administrator</option>
                 </select>
               </label>
-              <label>
-                Firebase Authentication UID (optional)
-                <input
-                  name="uid"
-                  maxLength={128}
-                  pattern="[a-zA-Z0-9_-]+"
-                  defaultValue={trainer?.uid ?? ''}
-                  disabled={self}
-                />
-              </label>
+              {!configured && (
+                <label>
+                  Firebase Authentication UID (optional)
+                  <input
+                    name="uid"
+                    maxLength={128}
+                    pattern="[a-zA-Z0-9_-]+"
+                    defaultValue={trainer?.uid ?? ''}
+                    disabled={self}
+                  />
+                </label>
+              )}
               <p className="form-note">
-                Das Login separat in Firebase Authentication erstellen und
-                E-Mail bestätigen lassen. Die UID verbindet dieses Profil mit
-                dem Konto. Ohne UID besteht kein Login-Zugriff. Die eigene
-                Kontofreigabe kann hier nicht verändert werden.
+                Kontoverknüpfungen bleiben erhalten. Neue Logins werden
+                ausschliesslich über eine persönliche Einladung freigegeben. Die
+                eigene Rolle kann hier nicht verändert werden.
               </p>
             </>
           )}
