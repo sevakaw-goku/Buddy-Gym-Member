@@ -3,6 +3,7 @@ test('admin invitation, new password, actual verification action, acceptance and
   browser,
   request,
 }) => {
+  test.setTimeout(90000);
   const adminContext = await browser.newContext();
   const admin = await adminContext.newPage();
   await admin.goto('/');
@@ -100,6 +101,78 @@ test('admin invitation, new password, actual verification action, acceptance and
     },
   });
   expect(reused.status()).toBe(410);
+  const row = admin
+    .locator('.trainer-row')
+    .filter({ hasText: 'Invited Browser Coach' });
+  await row.getByRole('button', { name: 'Deaktivieren', exact: true }).click();
+  await expect(
+    coach.getByText(
+      /Dein Konto ist noch nicht freigegeben oder wurde deaktiviert/,
+    ),
+  ).toBeVisible();
+  await row.getByRole('button', { name: 'Aktivieren', exact: true }).click();
+  await expect(
+    coach.getByRole('heading', { name: 'Alles im Blick.' }),
+  ).toBeVisible();
+  await row.getByRole('button', { name: 'Bearbeiten', exact: true }).click();
+  await admin
+    .getByRole('dialog')
+    .getByLabel('Rolle', { exact: true })
+    .selectOption('admin');
+  await admin
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Speichern', exact: true })
+    .click();
+  await coach.getByRole('button', { name: 'Menü öffnen' }).click();
+  await coach
+    .getByRole('navigation')
+    .getByRole('button', { name: 'Trainer', exact: true })
+    .click();
+  await expect(
+    coach.getByRole('button', { name: 'Trainer einladen', exact: true }),
+  ).toBeVisible();
+  await admin
+    .getByRole('button', { name: 'Trainer einladen', exact: true })
+    .click();
+  await admin.getByLabel('Name des Trainers').fill('Cancelled Browser Coach');
+  await admin
+    .getByLabel('E-Mail-Adresse')
+    .fill('cancelled-browser@example.com');
+  await admin
+    .getByRole('button', { name: 'Einladung senden', exact: true })
+    .click();
+  await expect(admin.getByRole('dialog')).toHaveCount(0);
+  const cancelled = admin
+    .locator('.trainer-row')
+    .filter({ hasText: 'Cancelled Browser Coach' });
+  const before = await (
+    await request.get('http://127.0.0.1:4175/inbox')
+  ).json();
+  await cancelled
+    .getByRole('button', { name: 'Erneut senden', exact: true })
+    .click();
+  await expect(admin.getByRole('status')).toContainText(
+    'Einladung erneut versendet',
+  );
+  const after = await (await request.get('http://127.0.0.1:4175/inbox')).json();
+  expect(after.length).toBe(before.length + 1);
+  const check = async (link: string) =>
+    request.post('/api/invitations', {
+      headers: { Origin: 'http://127.0.0.1:4174' },
+      data: {
+        action: 'preview',
+        token: new URL(link).hash.slice('#invite='.length),
+      },
+    });
+  expect((await check(before.at(-1).link)).status()).toBe(410);
+  admin.once('dialog', (d) => d.accept());
+  await cancelled
+    .getByRole('button', { name: 'Widerrufen', exact: true })
+    .click();
+  await expect(
+    cancelled.getByText('Deaktiviert', { exact: true }),
+  ).toBeVisible();
+  expect((await check(after.at(-1).link)).status()).toBe(410);
   await coachContext.close();
   await adminContext.close();
 });

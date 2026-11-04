@@ -278,6 +278,7 @@ export default function App() {
           const signature = JSON.stringify(profile);
           if (signature === currentGrant) return;
           currentGrant = signature;
+          setFatal('');
           const version = ++generation;
           stopData();
           setData(null);
@@ -305,8 +306,10 @@ export default function App() {
                   }
                 },
                 (e) => {
-                  setData(null);
-                  setFatal(errorText(e));
+                  if (alive && version === generation) {
+                    setData(null);
+                    setFatal(errorText(e));
+                  }
                 },
               );
             } catch (e) {
